@@ -1,0 +1,145 @@
+# @package datamodule
+defaults:
+  - /datamodule/semantic/default.yaml
+
+_target_: src.datamodules.forest.ForestDataModule
+
+# ------------------------------------------------------------------ #
+#  Dataset meta                                                        #
+# ------------------------------------------------------------------ #
+num_classes: 16
+# All 16 classes are "stuff" for semantic segmentation (no instance labels)
+stuff_classes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+trainval: False   # set True for final model training on train+val combined
+val_on_test: False
+
+# ------------------------------------------------------------------ #
+#  Tiling                                                              #
+# ------------------------------------------------------------------ #
+# Each raw plot is split into 2^2 = 4 sub-tiles along its principal
+# XY axis before preprocessing.  This keeps GPU/CPU memory manageable
+# for the largest plots (e.g. plot_08 with 280 M points).
+pc_tiling: 2
+
+# ------------------------------------------------------------------ #
+#  Handcrafted features                                                #
+# ------------------------------------------------------------------ #
+
+# Point features used for the Cut-Pursuit partition
+partition_hf:
+  - 'rgb'
+  - 'linearity'
+  - 'planarity'
+  - 'scattering'
+  - 'verticality'
+  - 'elevation'
+
+# Point features used for training
+point_hf:
+  - 'linearity'
+  - 'planarity'
+  - 'scattering'
+  - 'verticality'
+  - 'elevation'
+  - 'rgb'
+
+# Segment-level features (none computed at preprocessing time)
+segment_base_hf: []
+segment_mean_hf: []
+segment_std_hf: []
+
+# Horizontal edge features (on-the-fly at training time)
+edge_hf:
+  - 'mean_off'
+  - 'std_off'
+  - 'mean_dist'
+  - 'angle_source'
+  - 'angle_target'
+  - 'centroid_dir'
+  - 'centroid_dist'
+  - 'normal_angle'
+  - 'log_length'
+  - 'log_surface'
+  - 'log_volume'
+  - 'log_size'
+
+v_edge_hf: []   # no vertical edge features
+
+# ------------------------------------------------------------------ #
+#  Preprocessing parameters                                            #
+# ------------------------------------------------------------------ #
+
+# Voxelisation — 5 cm for dense TLS forest data
+voxel: 0.05
+
+# k-NN for local geometric feature computation
+knn: 25
+knn_r: 3.0        # search radius in metres
+knn_step: -1
+knn_min_search: 10
+
+# Ground-elevation estimation (RANSAC)
+ground_model: 'ransac'
+ground_threshold: 2.0   # metres; forest ground can be steep/uneven
+ground_xy_grid: 3       # grid-cell size for local RANSAC fitting
+ground_scale: 8         # smoothing scale in metres
+
+# Cut-Pursuit partition (3 hierarchical levels)
+pcp_regularization: [0.05, 0.2, 0.5]
+pcp_spatial_weight: [1e-1, 1e-1, 1e-1]
+pcp_edge_reduce: 'mean'
+pcp_cutoff: [10, 20, 50]     # min superpoint size per level
+pcp_k_adjacency: 10
+pcp_w_adjacency: 1
+pcp_iterations: 15
+
+# Horizontal superpoint graph construction
+graph_k_min: 1
+graph_k_max: 30
+graph_gap: [0.5, 2.0, 8.0]   # inter-level gap in metres (outdoor scale)
+graph_se_ratio: 0.3
+graph_se_min: 20
+graph_cycles: 3
+graph_margin: 0.5
+graph_chunk: [1e6, 1e5, 1e5]  # reduce if CUDA OOM during preprocessing
+
+# ------------------------------------------------------------------ #
+#  Batch construction                                                  #
+# ------------------------------------------------------------------ #
+sample_segment_ratio: 0.15
+sample_segment_by_size: True
+sample_segment_by_class: False
+sample_point_min: 32
+sample_point_max: 128
+sample_graph_r: 7        # subgraph radius in metres (similar to S3DIS indoor scale)
+sample_graph_k: 4
+sample_graph_max_nodes: 10000
+sample_graph_disjoint: True
+sample_graph_cylindrical: True  # cylindrical sampling suits outdoor scenes
+sample_edge_n_min: -1
+sample_edge_n_max: -1
+
+# ------------------------------------------------------------------ #
+#  Data augmentations                                                  #
+# ------------------------------------------------------------------ #
+pos_jitter: 0.04
+tilt_n_rotate_phi: 0.1
+tilt_n_rotate_theta: 180
+anisotropic_scaling: 0.2
+
+# RGB augmentations (colour data is available and reliable in this dataset)
+rgb_jitter: 0.05
+rgb_autocontrast: 0.5
+rgb_drop: 0.3
+
+node_feat_jitter: 0.01
+h_edge_feat_jitter: 0.01
+v_edge_feat_jitter: 0
+node_feat_drop: 0.3
+h_edge_feat_drop: 0
+v_edge_feat_drop: 0
+node_row_drop: 0
+h_edge_row_drop: 0
+v_edge_row_drop: 0
+drop_to_mean: False

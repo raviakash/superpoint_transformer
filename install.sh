@@ -2,7 +2,7 @@
 
 # Local variables
 PROJECT_NAME=spt
-PYTHON=3.8
+PYTHON=3.10
 TORCH=2.2.0
 CUDA_SUPPORTED=(11.8 12.1)
 

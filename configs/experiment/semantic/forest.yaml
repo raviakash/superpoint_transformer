@@ -1,0 +1,23 @@
+# @package _global_
+
+# Forest semantic segmentation experiment
+# Run with:
+#   python src/train.py experiment=semantic/forest
+#   python src/train.py experiment=semantic/forest +datamodule.mini=True  # mini test
+
+defaults:
+  - override /datamodule: semantic/forest.yaml
+  - override /model: semantic/spt-2.yaml
+  - override /trainer: gpu.yaml
+  - override /logger: csv.yaml
+
+extras:
+  print_config: false   # suppress the 900-line Hydra config dump in logs
+
+trainer:
+  max_epochs: 500
+
+model:
+  optimizer:
+    lr: 0.01
+    weight_decay: 1e-4

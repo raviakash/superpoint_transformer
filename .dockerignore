@@ -1,0 +1,27 @@
+# Large data — mount at runtime with -v instead
+data/
+
+# Preprocessed SPT outputs (regenerated during training)
+**/processed/
+
+# Python caches
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.egg-info/
+
+# Jupyter artefacts
+.ipynb_checkpoints/
+**/.ipynb_checkpoints/
+
+# Training logs and checkpoints
+logs/
+
+# Editor / OS artefacts
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Git internals (keep .git out of build context for speed)
+.git/

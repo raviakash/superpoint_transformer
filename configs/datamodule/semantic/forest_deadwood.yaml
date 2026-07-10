@@ -1,0 +1,172 @@
+# @package datamodule
+#
+# Below-1m forest floor config — adapted from forest.yaml for height-above-ground
+# point clouds (z ∈ [0, 1] m) of deadwood, stumps, and ground vegetation.
+#
+# Key differences from forest.yaml:
+#   ground_threshold  2.0  → 0.1  m   (only true ground surface seeds RANSAC)
+#   ground_scale      8    → 1.0       (elevation = z/1.0 gives [0,1] for below-1m)
+#   knn_r             3.0  → 0.5  m   (3m crosses many objects; 0.5m stays local)
+#   pcp_regularization       → finer  (smaller objects need finer superpoints)
+#   pcp_cutoff               → lower  (thin logs have ~5 voxels at 5 cm; cutoff=10 loses them)
+#   graph_gap                → smaller (attention at floor-object scale, not tree scale)
+#   sample_graph_r    7.0  → 3.0  m   (7m is tree-scale context; 3m = full deadwood log + surroundings)
+#   partition_hf             → no rgb (cross-sensor RGB unreliable for Cut-Pursuit partitioning)
+#   rgb_drop          0.3  → 0.5       (train geometry-first; network learns to downweight noisy RGB)
+
+defaults:
+  - /datamodule/semantic/default.yaml
+
+_target_: src.datamodules.forest.DeadwoodDataModule
+
+# ------------------------------------------------------------------ #
+#  Dataset meta                                                        #
+# ------------------------------------------------------------------ #
+num_classes: 16
+stuff_classes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+trainval: False
+val_on_test: False
+
+# ------------------------------------------------------------------ #
+#  Tiling                                                              #
+# ------------------------------------------------------------------ #
+# 2^2 = 4 tiles; keeps GPU memory manageable for 60m-diameter / 27M-pt plots.
+# Increase to pc_tiling=3 for plots larger than ~60m diameter.
+pc_tiling: 2
+
+# ------------------------------------------------------------------ #
+#  Handcrafted features                                                #
+# ------------------------------------------------------------------ #
+
+# Geometry-only Cut-Pursuit partition — RGB removed because cross-sensor
+# colour is unreliable and causes object fragmentation in below-1m data.
+partition_hf:
+  - 'linearity'
+  - 'planarity'
+  - 'scattering'
+  - 'verticality'
+  - 'elevation'
+
+# RGB kept for neural network input — the NN can learn to downweight
+# unreliable channels; rgb_drop=0.5 reinforces geometry-first learning.
+point_hf:
+  - 'linearity'
+  - 'planarity'
+  - 'scattering'
+  - 'verticality'
+  - 'elevation'
+  - 'rgb'
+
+segment_base_hf: []
+segment_mean_hf: []
+segment_std_hf: []
+
+edge_hf:
+  - 'mean_off'
+  - 'std_off'
+  - 'mean_dist'
+  - 'angle_source'
+  - 'angle_target'
+  - 'centroid_dir'
+  - 'centroid_dist'
+  - 'normal_angle'
+  - 'log_length'
+  - 'log_surface'
+  - 'log_volume'
+  - 'log_size'
+
+v_edge_hf: []
+
+# ------------------------------------------------------------------ #
+#  Preprocessing parameters                                            #
+# ------------------------------------------------------------------ #
+
+# 5 cm voxels — adequate for stumps and deadwood; revisit if thin-log
+# per-class IoU is poor (consider 0.02-0.03 m in a second run).
+voxel: 0.05
+
+# k-NN: radius reduced from 3.0 to 0.5 m so that neighbourhoods stay
+# within individual objects (stump ~0.3 m dia, log ~0.05-0.2 m dia).
+knn: 25
+knn_r: 0.5
+knn_step: -1
+knn_min_search: 10
+
+# Ground elevation: data is already height-above-ground (z ≈ 0 at surface).
+# threshold=0.1 m keeps only true ground points for RANSAC plane fitting.
+# scale=1.0 normalises elevation to [0, 1] for the [0, 1 m] height range.
+ground_model: 'ransac'
+ground_threshold: 0.1
+ground_xy_grid: 3
+ground_scale: 1.0
+
+# Cut-Pursuit partition — three hierarchy levels.
+# Regularisation reduced proportionally from forest.yaml [0.05, 0.2, 0.5];
+# pcp_regularization[0]=0.03 balances fine superpoints with intra-object
+# consistency (0.02 risks over-fragmentation within single objects).
+# pcp_cutoff reduced: thin deadwood logs have ~5 voxels at 5 cm resolution;
+# cutoff=10 would silently absorb them into neighbouring superpoints.
+pcp_regularization: [0.03, 0.1, 0.3]
+pcp_spatial_weight: [1e-1, 1e-1, 1e-1]
+pcp_edge_reduce: 'mean'
+pcp_cutoff: [5, 10, 30]
+pcp_k_adjacency: 10
+pcp_w_adjacency: 1
+pcp_iterations: 15
+
+# Superpoint attention graph — gaps scaled to floor-object scale.
+# [0.2, 0.5, 2.0] m gives the model a 4 m horizontal view at the top level,
+# enough to contrast stumps, logs, and vegetation clusters.
+graph_k_min: 1
+graph_k_max: 30
+graph_gap: [0.2, 0.5, 2.0]
+graph_se_ratio: 0.3
+graph_se_min: 20
+graph_cycles: 3
+graph_margin: 0.5
+graph_chunk: [1e6, 1e5, 1e5]
+
+# ------------------------------------------------------------------ #
+#  Batch construction                                                  #
+# ------------------------------------------------------------------ #
+sample_segment_ratio: 0.15
+sample_segment_by_size: True
+sample_segment_by_class: False
+sample_point_min: 32
+sample_point_max: 128
+# sample_graph_r: 3.0 m captures full deadwood logs plus surrounding context.
+# (forest.yaml uses 7.0 m which is tree-crown scale — excessive here.)
+# Raise to 4.0 m if long logs (>3 m) are systematically under-classified.
+sample_graph_r: 3.0
+sample_graph_k: 4
+sample_graph_max_nodes: 10000
+sample_graph_disjoint: True
+sample_graph_cylindrical: True
+sample_edge_n_min: -1
+sample_edge_n_max: -1
+
+# ------------------------------------------------------------------ #
+#  Data augmentations                                                  #
+# ------------------------------------------------------------------ #
+pos_jitter: 0.04
+tilt_n_rotate_phi: 0.1
+tilt_n_rotate_theta: 180
+anisotropic_scaling: 0.2
+
+# rgb_drop raised from 0.3 to 0.5: forces the model to lean on geometry
+# when RGB is masked, improving robustness to cross-sensor colour shift.
+rgb_jitter: 0.05
+rgb_autocontrast: 0.5
+rgb_drop: 0.5
+
+node_feat_jitter: 0.01
+h_edge_feat_jitter: 0.01
+v_edge_feat_jitter: 0
+node_feat_drop: 0.3
+h_edge_feat_drop: 0
+v_edge_feat_drop: 0
+node_row_drop: 0
+h_edge_row_drop: 0
+v_edge_row_drop: 0
+drop_to_mean: False

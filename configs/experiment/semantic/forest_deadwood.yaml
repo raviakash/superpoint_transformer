@@ -1,0 +1,34 @@
+# @package _global_
+#
+# Below-1m forest floor experiment — fine-tune from epoch_379.ckpt or train from scratch.
+#
+# Fine-tune (recommended first):
+#   python src/train.py experiment=semantic/forest_deadwood \
+#       ckpt_path=logs/train/runs/2026-06-11_15-11-18/checkpoints/epoch_379.ckpt
+#
+# Train from scratch:
+#   python src/train.py experiment=semantic/forest_deadwood \
+#       trainer.max_epochs=500 model.optimizer.lr=0.01
+
+defaults:
+  - override /datamodule: semantic/forest_deadwood.yaml
+  - override /model: semantic/spt-2.yaml
+  - override /trainer: gpu.yaml
+  - override /logger: csv.yaml
+
+extras:
+  print_config: false
+
+trainer:
+  # 200 epochs is a generous fine-tune budget; typical convergence is 50-100.
+  # Extend to 300-500 if val/mIoU is still climbing at epoch 180.
+  # Stop early if val/mIoU plateaus for 30+ consecutive epochs.
+  max_epochs: 200
+
+model:
+  optimizer:
+    # 10x lower than scratch LR (0.01) — standard fine-tuning protocol.
+    # Drop to 0.0001 only if the loss oscillates or val/mIoU regresses
+    # in the first 20 epochs.
+    lr: 0.001
+    weight_decay: 1e-4
