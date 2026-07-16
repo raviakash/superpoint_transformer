@@ -25,8 +25,8 @@ _target_: src.datamodules.forest.DeadwoodDataModule
 num_classes: 16
 stuff_classes: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
 
-trainval: False
-val_on_test: False
+trainval: True
+val_on_test: True
 
 # ------------------------------------------------------------------ #
 #  Tiling                                                              #
@@ -48,15 +48,15 @@ partition_hf:
   - 'verticality'
   - 'elevation'
 
-# RGB kept for neural network input — the NN can learn to downweight
-# unreliable channels; rgb_drop=0.5 reinforces geometry-first learning.
+# RGB removed from neural network input — fully geometry-only model.
+# Makes the network sensor-agnostic: TLS training data transfers to MLS
+# test data without RGB domain shift.
 point_hf:
   - 'linearity'
   - 'planarity'
   - 'scattering'
   - 'verticality'
   - 'elevation'
-  - 'rgb'
 
 segment_base_hf: []
 segment_mean_hf: []
@@ -93,11 +93,12 @@ knn_r: 0.5
 knn_step: -1
 knn_min_search: 10
 
-# Ground elevation: data is already height-above-ground (z ≈ 0 at surface).
-# threshold=0.1 m keeps only true ground points for RANSAC plane fitting.
-# scale=1.0 normalises elevation to [0, 1] for the [0, 1 m] height range.
+# Ground elevation: data has absolute z (slope-aware crop, NOT pre-normalised).
+# threshold=2.0 captures all ground points across the full terrain slope within
+# a plot (same as forest.yaml); RANSAC then fits the inclined ground plane.
+# scale=1.0 normalises elevation to [0, 1] for the [0, 1 m] HAG range.
 ground_model: 'ransac'
-ground_threshold: 0.1
+ground_threshold: 2.0
 ground_xy_grid: 3
 ground_scale: 1.0
 

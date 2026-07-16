@@ -257,7 +257,8 @@ def _prepare_inference_input(input_path: str, data_dir: str) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_cfg(ckpt_path: str, split: str = "test",
-              datamodule_target: str = None):
+              datamodule_target: str = None,
+              experiment: str = "semantic/forest"):
     import pyrootutils
     from hydra import compose, initialize_config_dir
     from omegaconf import OmegaConf
@@ -269,7 +270,7 @@ def build_cfg(ckpt_path: str, split: str = "test",
         OmegaConf.register_new_resolver("eval", eval)
 
     overrides = [
-        "experiment=semantic/forest",
+        f"experiment={experiment}",
         "trainer=gpu",
         f"ckpt_path={ckpt_path}",
         "logger=csv",
@@ -317,6 +318,10 @@ def main():
     parser.add_argument("--out",   default=None,
                         help="Output directory for predicted LAZ files "
                              "(default: <data-dir>/predictions/<split>/)")
+    parser.add_argument("--experiment", default="semantic/forest",
+                        help="Hydra experiment config to use for preprocessing "
+                             "(default: semantic/forest). Use semantic/forest_deadwood "
+                             "when running inference with a deadwood checkpoint.")
     args = parser.parse_args()
 
     def _resolve(p: str) -> str:
@@ -362,7 +367,8 @@ def main():
     log.info(f"Output dir : {out_dir}")
 
     # ── 1. Hydra config + instantiation ──────────────────────────────────────
-    cfg = build_cfg(ckpt_path, args.split, datamodule_target=datamodule_target)
+    cfg = build_cfg(ckpt_path, args.split, datamodule_target=datamodule_target,
+                    experiment=args.experiment)
     import hydra.utils as hu
 
     datamodule = hu.instantiate(cfg.datamodule)
